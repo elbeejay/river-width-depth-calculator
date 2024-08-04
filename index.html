@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>River Width-Depth Calculator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            height: 100%;
+        }
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+        .calculator {
+            flex: 1;
+            padding: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        input, button {
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+        }
+        #result, #averageWidth {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        #depthRange {
+            font-size: 14px;
+            margin-top: 0px;
+            margin-left: 15px;
+            margin-bottom: 20px;
+        }
+        #widthRange {
+            font-size: 14px;
+            margin-top: 0px;
+            margin-left: 15px;
+            margin-bottom: 10px;
+        }
+        #measurementsList {
+            margin-top: 20px;
+        }
+        .measurement-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .remove-measurement {
+            background-color: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #aboutSection {
+            margin-top: 20px;
+            border-top: 1px solid #ccc;
+            padding-top: 20px;
+            display: none;
+        }
+        #toggleAbout {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="map"></div>
+        <div class="calculator">
+            <h2>River Width-Depth Calculator</h2>
+            <p>Measure river width on the map or input values below:</p>
+            <input type="number" id="widthInput" placeholder="Enter river width (meters)">
+            <button onclick="addMeasurement()">Add Measurement</button>
+            <div id="measurementsList"></div>
+            <div id="averageWidth"></div>
+            <div id="widthRange"></div>
+            <button onclick="calculateDepth()">Calculate Depth</button>
+            <div id="result"></div>
+            <div id="depthRange"></div>
+            <button id="toggleAbout" onclick="toggleAboutSection()">About This Calculator</button>
+            <div id="aboutSection">
+                <h3>About This Calculator</h3>
+                <p>This calculator estimates river depth based on measured river width by using width to estimate discharge, and then using discharge to estimate depth.
+                The functional form of these relationships was first described by Leopold and Maddock in 1953 (<a href="https://semspub.epa.gov/work/01/554357.pdf" target="_blank">Link</a>) as:</p>
+
+                    <p><strong>w = a * Q<sup>b</sup></strong></p>
+                    <p>and</p>
+                    <p><strong>d = c * Q<sup>f</sup></strong></p>
+
+                <p>where <strong>w</strong> is river width, <strong>d</strong> is river depth, <strong>Q</strong> is discharge, and <strong>a</strong>, <strong>b</strong>, <strong>c</strong>, and <strong>f</strong> are coefficients.</p>
+
+                <p>In 2002, Moody and Troutman (<a href="https://onlinelibrary.wiley.com/doi/pdf/10.1002/esp.403?casa_token=Za3AyMwoQtgAAAAA:mqentCE1utPtdvX5HqJKC2WEZQ9Qa3JAtMZUoVkSwGVgLmEYi6myaSXUaWZ9NpnK8yTrAOB6EX8D4w" target="_blank">Link</a>), published a study which used field measurements to define coefficients for these relationships.</p>
+
+                <p>In this tool we allow the user to input (or measure) one or more river widths.
+                The average width value is then used, with the coefficients from Moody and Troutman, to calculate the discharge, and then subsequently the depth of the river.
+                The width range is determined using the minimum and maximum values of the width numbers provided.
+                The depth uncertainty values are calculated using the minimum and maximum width values, and the coefficients corresponding to the edges of the 95% confidence interval from Moody and Troutman.
+                The coefficients are chosen to provide the largest uncertainty range possible (i.e., the minimum width and corresponding coefficients are used to generate the smallest possible depth value, and vise versa for the maximum).
+                </p>
+
+                <br>
+
+                <p><strong>References:</strong></p>
+                <p>Leopold, Luna Bergere, and Thomas Maddock. The hydraulic geometry of stream channels and some physiographic implications. Vol. 252. US Government Printing Office, 1953.</p>
+                <p>Moody, John A., and Brent M. Troutman. "Characterization of the spatial variability of channel morphology." Earth Surface Processes and Landforms: The Journal of the British Geomorphological Research Group 27.12 (2002): 1251-1266.</p>
+
+                <br>
+
+                <p><em>Please note that these depth estimates are highly generalized and may not be accurate for all river types or locations. Local factors such as geology, climate, and human modifications can influence the actual depth-width relationship.</em></p>
+            </div>
+
+            <p style="font-size: 12px; text-align: right">Webpage created by <a href="https://jayaramhariharan.com/" target="_blank">J. Hariharan</a></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script>
+        var map = L.map('map').setView([51.505, -0.09], 13);
+        var measurements = [];
+
+        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        });
+
+        var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+
+        var Stadia_AlidadeSatellite = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}{r}.{ext}', {
+            minZoom: 0,
+            maxZoom: 20,
+            attribution: '&copy; CNES, Distribution Airbus DS, © Airbus DS, © PlanetObserver (Contains Copernicus Data) | &copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            ext: 'jpg'
+        });
+
+        osm.addTo(map);
+
+        var baseMaps = {
+            "OpenStreetMap": osm,
+            "ESRI World Imagery": satellite,
+            "Stadia Alidade Satellite": Stadia_AlidadeSatellite
+        };
+
+        L.control.layers(baseMaps).addTo(map);
+
+        var drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        var drawControl = new L.Control.Draw({
+            draw: {
+                polygon: false,
+                circle: false,
+                rectangle: false,
+                circlemarker: false,
+                marker: false
+            },
+            edit: {
+                featureGroup: drawnItems
+            }
+        });
+        map.addControl(drawControl);
+
+        map.on('draw:created', function (e) {
+            var layer = e.layer;
+            drawnItems.addLayer(layer);
+            var length = calculateLength(layer);
+            addMeasurement(length);
+        });
+
+        function calculateLength(layer) {
+            var latlngs = layer.getLatLngs();
+            var length = 0;
+            for (var i = 1; i < latlngs.length; i++) {
+                length += latlngs[i-1].distanceTo(latlngs[i]);
+            }
+            return length;
+        }
+
+        function addMeasurement(length) {
+            var width = length || parseFloat(document.getElementById('widthInput').value);
+            if (isNaN(width) || width <= 0) {
+                alert("Please enter a valid positive number for the width.");
+                return;
+            }
+            measurements.push(width);
+            updateMeasurementsList();
+            document.getElementById('widthInput').value = '';
+        }
+
+        function updateMeasurementsList() {
+            var list = document.getElementById('measurementsList');
+            list.innerHTML = '';
+            measurements.forEach((measurement, index) => {
+                var item = document.createElement('div');
+                item.className = 'measurement-item';
+                item.innerHTML = `
+                    <span>Measurement ${index + 1}: ${measurement.toFixed(2)} meters</span>
+                    <button class="remove-measurement" onclick="removeMeasurement(${index})">Remove</button>
+                `;
+                list.appendChild(item);
+            });
+            updateAverageWidth();
+            minMaxWidth();
+        }
+
+        function removeMeasurement(index) {
+            measurements.splice(index, 1);
+            updateMeasurementsList();
+        }
+
+        function updateAverageWidth() {
+            var averageWidth = document.getElementById('averageWidth');
+            if (measurements.length > 0) {
+                var sum = measurements.reduce((a, b) => a + b, 0);
+                var avg = sum / measurements.length;
+                averageWidth.innerHTML = `Average Width: ${avg.toFixed(2)} meters`;
+            } else {
+                averageWidth.innerHTML = '';
+            }
+        }
+
+        function minMaxWidth() {
+            var min = measurements.reduce((a, b) => Math.min(a, b), Infinity);
+            var max = measurements.reduce((a, b) => Math.max(a, b), -Infinity);
+            var minWidth = document.getElementById('minWidth');
+            var maxWidth = document.getElementById('maxWidth');
+            if (measurements.length > 0) {
+                widthRange.innerHTML = `Width Range: [${min.toFixed(2)}, ${max.toFixed(2)}] meters`;
+            } else {
+                widthRange.innerHTML = '';
+            }
+        }
+
+        function calculateDepth() {
+            if (measurements.length === 0) {
+                alert("Please add at least one measurement before calculating depth.");
+                return;
+            }
+            // Define widths
+            var minWidth = measurements.reduce((a, b) => Math.min(a, b), Infinity);
+            var sum = measurements.reduce((a, b) => a + b, 0);
+            var avgWidth = sum / measurements.length;
+            var maxWidth = measurements.reduce((a, b) => Math.max(a, b), -Infinity);
+
+            // Coefficients to solve for Q
+            var inv_b_min = 1.0 / 0.52;
+            var inv_b_mid = 1.0 / 0.5;
+            var inv_b_max = 1.0 / 0.48;
+
+            var coeff_a_min = 20.2;
+            var coeff_a_mid = 7.2;
+            var coeff_a_max = 2.6;
+
+            // Solve for Q
+            var Q_min = Math.pow((minWidth / coeff_a_min), inv_b_min);
+            var Q_mid = Math.pow((avgWidth / coeff_a_mid), inv_b_mid);
+            var Q_max = Math.pow((maxWidth / coeff_a_max), inv_b_max);
+
+            // Coefficients to solve for D
+            var coeff_c_min = 0.12;
+            var coeff_c_mid = 0.27;
+            var coeff_c_max = 0.63;
+
+            var coeff_f_min = 0.29;
+            var coeff_f_mid = 0.30;
+            var coeff_f_max = 0.31;
+
+            // Solve for D
+            var depth_min = coeff_c_min * Math.pow(Q_min, coeff_f_min);
+            var depth = coeff_c_mid * Math.pow(Q_mid, coeff_f_mid);
+            var depth_max = coeff_c_max * Math.pow(Q_max, coeff_f_max);
+
+            document.getElementById('result').innerHTML = `Estimated river depth: ${depth.toFixed(2)} meters`;
+            document.getElementById('depthRange').innerHTML = `Depth uncertainty range: [${depth_min.toFixed(2)}, ${depth_max.toFixed(2)}] meters`;
+        }
+
+        function toggleAboutSection() {
+            var aboutSection = document.getElementById('aboutSection');
+            if (aboutSection.style.display === 'none' || aboutSection.style.display === '') {
+                aboutSection.style.display = 'block';
+            } else {
+                aboutSection.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
